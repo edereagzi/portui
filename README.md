@@ -6,7 +6,34 @@ Port-first process manager TUI for macOS and Linux — see what's on your ports 
 
 ## Installation
 
-**From binary** (no Go required):
+**Recommended (installer script, no Go required):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | sh
+```
+
+Optional installer settings:
+
+```bash
+# Pin a specific version
+curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env VERSION=v0.1.1 sh
+
+# Force install directory
+curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env INSTALL_DIR="$HOME/.local/bin" sh
+
+# Disable checksum verification (not recommended)
+curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env VERIFY_CHECKSUM=0 sh
+```
+
+Installer environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VERSION` | `latest` | Release tag to install (`v0.1.1`, `v0.2.0`, etc.) |
+| `INSTALL_DIR` | auto (`/usr/local/bin` if writable, else `~/.local/bin`) | Destination directory |
+| `VERIFY_CHECKSUM` | `1` | `1` verifies SHA256 against release `checksums.txt` |
+
+**Manual binary install** (fallback):
 
 ```bash
 # macOS (Apple Silicon)
@@ -26,7 +53,7 @@ curl -sL https://github.com/edereagzi/portui/releases/latest/download/portui_lin
 sudo mv portui /usr/local/bin/
 ```
 
-**From source** (requires Go 1.22+):
+**From source** (requires Go 1.26+):
 
 ```bash
 go install github.com/edereagzi/portui/cmd/portui@latest
