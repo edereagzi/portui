@@ -56,7 +56,7 @@ func New(scanner types.PortScanner, processService types.ProcessService) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Batch(scanPortsCmd(m.scanner), tickCmd(), tea.Raw("\x1b[?25l"))
+	return tea.Batch(scanPortsCmd(m.scanner), tickCmd())
 }
 
 const confirmDialogLines = 5
