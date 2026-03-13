@@ -1,0 +1,29 @@
+name: Feature
+description: Request a new feature or improvement.
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      placeholder: What do you want to add?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: Why
+      placeholder: Why is this useful?
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: 2-3 bullet points for acceptance.
+    validations:
+      required: true

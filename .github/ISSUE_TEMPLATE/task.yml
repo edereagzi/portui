@@ -1,0 +1,27 @@
+name: Task
+description: Internal maintenance/refactor/docs task.
+title: "[Task] "
+labels:
+  - chore
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: Task
+      placeholder: What should be done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      placeholder: Constraints, links, or context.
+
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: 1-3 completion points.
+    validations:
+      required: true
