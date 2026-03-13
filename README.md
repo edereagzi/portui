@@ -91,6 +91,10 @@ No flags or configuration needed. portui will scan your system for listening por
 
 Every developer has typed `lsof -i :3000` to find what's eating their port. portui is the TUI that should have existed — see all listening ports mapped to their processes, navigate with vim keys, and kill with one keystroke. No more context switching, no more copy-pasting PIDs.
 
+## Contributing
+
+See `CONTRIBUTING.md` for branch naming and PR/issue linking workflow.
+
 ## License
 
 MIT
