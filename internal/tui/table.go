@@ -11,7 +11,7 @@ import (
 func buildTable(entries []types.PortEntry, width, height int) table.Model {
 	cols := []table.Column{
 		{Title: "Port", Width: 8},
-		{Title: "Protocol", Width: 6},
+		{Title: "Protocol", Width: 8},
 		{Title: "PID", Width: 8},
 		{Title: "Process", Width: 20},
 		{Title: "User", Width: 12},
