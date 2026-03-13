@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/edereagzi/portui/internal/types"
@@ -43,18 +44,21 @@ func filteredEntries(entries []types.PortEntry, query string) []types.PortEntry 
 
 	if query == "" {
 		result = deduped
-	} else {
+	} else if !hasOperatorToken(query) {
 		q := strings.ToLower(query)
 		result = make([]types.PortEntry, 0)
 
 		for _, e := range deduped {
-			portStr := fmt.Sprintf("%d", e.Port)
-			pidStr := fmt.Sprintf("%d", e.PID)
-			processLower := strings.ToLower(e.ProcessName)
+			if matchesPlainToken(e, q) {
+				result = append(result, e)
+			}
+		}
+	} else {
+		result = make([]types.PortEntry, 0)
+		tokens := strings.Fields(query)
 
-			if strings.Contains(portStr, q) ||
-				strings.Contains(processLower, q) ||
-				strings.HasPrefix(pidStr, q) {
+		for _, e := range deduped {
+			if matchesAllTokens(e, tokens) {
 				result = append(result, e)
 			}
 		}
@@ -65,4 +69,58 @@ func filteredEntries(entries []types.PortEntry, query string) []types.PortEntry 
 	})
 
 	return result
+}
+
+func hasOperatorToken(query string) bool {
+	for _, token := range strings.Fields(query) {
+		field, _, ok := strings.Cut(token, ":")
+		if !ok {
+			continue
+		}
+		switch strings.ToLower(field) {
+		case "port", "proc", "pid", "user":
+			return true
+		}
+	}
+	return false
+}
+
+func matchesAllTokens(e types.PortEntry, tokens []string) bool {
+	for _, token := range tokens {
+		if !matchesToken(e, token) {
+			return false
+		}
+	}
+	return true
+}
+
+func matchesToken(e types.PortEntry, token string) bool {
+	field, value, ok := strings.Cut(token, ":")
+	if ok {
+		value = strings.TrimSpace(value)
+		switch strings.ToLower(field) {
+		case "port":
+			port, err := strconv.Atoi(value)
+			return err == nil && uint16(port) == e.Port
+		case "proc":
+			return strings.Contains(strings.ToLower(e.ProcessName), strings.ToLower(value))
+		case "pid":
+			pid, err := strconv.Atoi(value)
+			return err == nil && int32(pid) == e.PID
+		case "user":
+			return strings.Contains(strings.ToLower(e.User), strings.ToLower(value))
+		}
+	}
+
+	return matchesPlainToken(e, strings.ToLower(token))
+}
+
+func matchesPlainToken(e types.PortEntry, token string) bool {
+	portStr := fmt.Sprintf("%d", e.Port)
+	pidStr := fmt.Sprintf("%d", e.PID)
+	processLower := strings.ToLower(e.ProcessName)
+
+	return strings.Contains(portStr, token) ||
+		strings.Contains(processLower, token) ||
+		strings.HasPrefix(pidStr, token)
 }
