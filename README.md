@@ -69,6 +69,14 @@ portui
 
 No flags or configuration needed. portui will scan your system for listening ports and display them in an interactive terminal UI.
 
+Update to latest release:
+
+```bash
+portui update
+```
+
+Note: self-update supports direct installs on macOS/Linux where the current `portui` binary path is writable.
+
 ## Keybindings
 
 | Key | Action |
