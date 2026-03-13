@@ -255,3 +255,74 @@ func TestFilteredEntriesSortedByPort(t *testing.T) {
 		}
 	}
 }
+
+func TestSearchOperatorPort(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "port:3000")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for port:3000, got %d", len(results))
+	}
+	if results[0].Port != 3000 {
+		t.Fatalf("expected port 3000, got %d", results[0].Port)
+	}
+}
+
+func TestSearchOperatorProc(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "proc:node")
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results for proc:node, got %d", len(results))
+	}
+	for _, e := range results {
+		if !strings.Contains(strings.ToLower(e.ProcessName), "node") {
+			t.Fatalf("unexpected process in proc filter: %+v", e)
+		}
+	}
+}
+
+func TestSearchOperatorPID(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "pid:1234")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for pid:1234, got %d", len(results))
+	}
+	if results[0].PID != 1234 {
+		t.Fatalf("expected PID 1234, got %d", results[0].PID)
+	}
+}
+
+func TestSearchOperatorUser(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "user:postgres")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for user:postgres, got %d", len(results))
+	}
+	if results[0].User != "postgres" {
+		t.Fatalf("expected user postgres, got %q", results[0].User)
+	}
+}
+
+func TestSearchOperatorAndLogic(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "proc:node user:eray port:3000")
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for AND query, got %d", len(results))
+	}
+	if results[0].Port != 3000 || results[0].PID != 1001 {
+		t.Fatalf("unexpected result for AND query: %+v", results[0])
+	}
+}
+
+func TestSearchPlainTextFallbackUnchanged(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "node")
+	if len(results) != 2 {
+		t.Fatalf("expected plain-text behavior to remain unchanged for 'node', got %d", len(results))
+	}
+}
