@@ -27,14 +27,12 @@ var (
 				Padding(0, 1)
 
 	TableRowStyle = lipgloss.NewStyle().
-			Foreground(colorWhite).
 			Padding(0, 1)
 
 	SelectedRowStyle = lipgloss.NewStyle().
 				Foreground(colorDark).
 				Background(colorCyan).
-				Bold(true).
-				Padding(0, 1)
+				Bold(true)
 
 	StatusBarStyle = lipgloss.NewStyle().
 			Foreground(colorGray).
