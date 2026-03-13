@@ -97,17 +97,30 @@ func matchesAllTokens(e types.PortEntry, tokens []string) bool {
 func matchesToken(e types.PortEntry, token string) bool {
 	field, value, ok := strings.Cut(token, ":")
 	if ok {
+		field = strings.ToLower(strings.TrimSpace(field))
 		value = strings.TrimSpace(value)
-		switch strings.ToLower(field) {
+		switch field {
 		case "port":
 			port, err := strconv.Atoi(value)
-			return err == nil && uint16(port) == e.Port
+			if err != nil || port < 0 || port > 65535 {
+				return false
+			}
+			return uint16(port) == e.Port
 		case "proc":
+			if value == "" {
+				return false
+			}
 			return strings.Contains(strings.ToLower(e.ProcessName), strings.ToLower(value))
 		case "pid":
 			pid, err := strconv.Atoi(value)
-			return err == nil && int32(pid) == e.PID
+			if err != nil || pid < 0 || pid > 2147483647 {
+				return false
+			}
+			return int32(pid) == e.PID
 		case "user":
+			if value == "" {
+				return false
+			}
 			return strings.Contains(strings.ToLower(e.User), strings.ToLower(value))
 		}
 	}

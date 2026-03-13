@@ -326,3 +326,51 @@ func TestSearchPlainTextFallbackUnchanged(t *testing.T) {
 		t.Fatalf("expected plain-text behavior to remain unchanged for 'node', got %d", len(results))
 	}
 }
+
+func TestSearchOperatorPortRejectsNegativeValue(t *testing.T) {
+	entries := []types.PortEntry{
+		{Port: 65535, Protocol: "tcp", PID: 4242, ProcessName: "edge", User: "eray", LocalAddr: "127.0.0.1"},
+	}
+	m := newLoadedModel(entries)
+
+	results := filteredEntries(m.entries, "port:-1")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for invalid port:-1, got %d", len(results))
+	}
+}
+
+func TestSearchOperatorPortRejectsOutOfRangeValue(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "port:70000")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for invalid port:70000, got %d", len(results))
+	}
+}
+
+func TestSearchOperatorPIDRejectsOutOfRangeValue(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "pid:2147483648")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for invalid pid:2147483648, got %d", len(results))
+	}
+}
+
+func TestSearchOperatorProcRejectsEmptyValue(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "proc:")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for invalid proc:, got %d", len(results))
+	}
+}
+
+func TestSearchOperatorUserRejectsEmptyValue(t *testing.T) {
+	m := newLoadedModel(searchTestEntries())
+
+	results := filteredEntries(m.entries, "user:")
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results for invalid user:, got %d", len(results))
+	}
+}
