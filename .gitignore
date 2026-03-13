@@ -1,0 +1,15 @@
+# Build artifacts
+dist/
+
+# Go
+vendor/
+*.test
+
+# macOS
+.DS_Store
+
+# Idea
+.idea
+
+# Agents
+.sisyphus
