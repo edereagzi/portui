@@ -85,7 +85,7 @@ No flags or configuration needed. portui will scan your system for listening por
 ## Requirements
 
 - macOS or Linux (arm64 or amd64)
-- Go 1.22 or later (for building from source)
+- Go 1.26 or later (for building from source)
 
 ## Why portui?
 
