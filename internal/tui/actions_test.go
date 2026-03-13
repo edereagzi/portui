@@ -199,3 +199,78 @@ func TestKillShowsPendingStatus(t *testing.T) {
 		t.Fatal("expected non-nil cmd for async kill")
 	}
 }
+
+func TestConfirmKillViewShowsImpactSummaryMultiPort(t *testing.T) {
+	entry := &types.PortEntry{Port: 3000, PID: 1001, ProcessName: "node", Protocol: "tcp", User: "eray", LocalAddr: "127.0.0.1"}
+	entries := []types.PortEntry{
+		{Port: 3000, PID: 1001, ProcessName: "node", Protocol: "tcp", User: "eray", LocalAddr: "127.0.0.1"},
+		{Port: 3001, PID: 1001, ProcessName: "node", Protocol: "tcp", User: "eray", LocalAddr: "127.0.0.1"},
+		{Port: 5432, PID: 4321, ProcessName: "postgres", Protocol: "tcp", User: "postgres", LocalAddr: "127.0.0.1"},
+	}
+
+	view := confirmKillView(entry, impactedPortsByPID(entries, entry.PID), 0)
+	if !strings.Contains(view, "Affects 2 listening ports") {
+		t.Fatalf("expected impact summary in confirm dialog, got: %q", view)
+	}
+	if !strings.Contains(view, "3000") || !strings.Contains(view, "3001") {
+		t.Fatalf("expected affected port list in confirm dialog, got: %q", view)
+	}
+}
+
+func TestConfirmKillViewShowsSinglePortImpact(t *testing.T) {
+	entry := &types.PortEntry{Port: 8080, PID: 1234, ProcessName: "api-server", Protocol: "tcp", User: "eray", LocalAddr: "127.0.0.1"}
+	entries := []types.PortEntry{
+		{Port: 8080, PID: 1234, ProcessName: "api-server", Protocol: "tcp", User: "eray", LocalAddr: "127.0.0.1"},
+	}
+
+	view := confirmKillView(entry, impactedPortsByPID(entries, entry.PID), 0)
+	if !strings.Contains(view, "Affects 1 listening port") {
+		t.Fatalf("expected single-port impact summary, got: %q", view)
+	}
+}
+
+func TestFormatImpactSummaryZero(t *testing.T) {
+	got := formatImpactSummary(nil)
+	if got != "Affects 0 listening ports" {
+		t.Fatalf("expected zero-case summary, got %q", got)
+	}
+}
+
+func TestFormatImpactSummaryTruncatesLongPortList(t *testing.T) {
+	ports := []uint16{1000, 1001, 1002, 1003, 1004, 1005, 1006}
+	got := formatImpactSummary(ports)
+	if !strings.Contains(got, "Affects 7 listening ports") {
+		t.Fatalf("expected total count in summary, got %q", got)
+	}
+	if !strings.Contains(got, "(+1 more)") {
+		t.Fatalf("expected overflow suffix in summary, got %q", got)
+	}
+}
+
+func TestConfirmImpactSnapshotStaysStableDuringRefresh(t *testing.T) {
+	svc := &mockProcessServiceKill{}
+	entries := []types.PortEntry{
+		{Port: 3000, Protocol: "tcp", PID: 1001, ProcessName: "node", User: "eray", LocalAddr: "127.0.0.1"},
+		{Port: 3001, Protocol: "tcp", PID: 1001, ProcessName: "node", User: "eray", LocalAddr: "127.0.0.1"},
+	}
+	m := New(mockScanner{}, svc)
+	updated, _ := m.Update(portsLoadedMsg{entries: entries})
+	m = updated.(Model)
+
+	updated2, _ := m.Update(tea.KeyPressMsg{Text: "x"})
+	m = updated2.(Model)
+
+	if got := formatImpactSummary(m.confirmImpactPorts); !strings.Contains(got, "Affects 2 listening ports") {
+		t.Fatalf("expected initial snapshot to show 2 ports, got %q", got)
+	}
+
+	refreshEntries := []types.PortEntry{
+		{Port: 5432, Protocol: "tcp", PID: 4321, ProcessName: "postgres", User: "postgres", LocalAddr: "127.0.0.1"},
+	}
+	updated3, _ := m.Update(portsLoadedMsg{entries: refreshEntries})
+	m = updated3.(Model)
+
+	if got := formatImpactSummary(m.confirmImpactPorts); !strings.Contains(got, "Affects 2 listening ports") {
+		t.Fatalf("expected snapshot to remain stable during confirm state, got %q", got)
+	}
+}

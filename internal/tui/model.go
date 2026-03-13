@@ -25,21 +25,22 @@ const (
 )
 
 type Model struct {
-	scanner        types.PortScanner
-	processService types.ProcessService
-	entries        []types.PortEntry
-	filtered       []types.PortEntry
-	table          table.Model
-	state          appState
-	width          int
-	height         int
-	err            error
-	filterText     string
-	filterInput    textinput.Model
-	selectedEntry  *types.PortEntry
-	detailInfo     *types.ProcessInfo
-	statusMsg      string
-	statusIsErr    bool
+	scanner            types.PortScanner
+	processService     types.ProcessService
+	entries            []types.PortEntry
+	filtered           []types.PortEntry
+	table              table.Model
+	state              appState
+	width              int
+	height             int
+	err                error
+	filterText         string
+	filterInput        textinput.Model
+	selectedEntry      *types.PortEntry
+	confirmImpactPorts []uint16
+	detailInfo         *types.ProcessInfo
+	statusMsg          string
+	statusIsErr        bool
 }
 
 func New(scanner types.PortScanner, processService types.ProcessService) Model {
@@ -59,7 +60,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(scanPortsCmd(m.scanner), tickCmd())
 }
 
-const confirmDialogLines = 5
+const confirmDialogLines = 6
 
 func (m *Model) rebuildTable() {
 	prevRow := m.table.SelectedRow()
@@ -100,6 +101,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.statusIsErr = false
 		}
 		m.selectedEntry = nil
+		m.confirmImpactPorts = nil
 		m.state = stateTable
 		m.rebuildTable()
 		return m, tea.Batch(scanPortsCmd(m.scanner), statusClearCmd())
@@ -146,6 +148,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if key.Matches(msg, Keys.Kill) && m.selectedEntry != nil {
+				m.confirmImpactPorts = impactedPortsByPID(m.entries, m.selectedEntry.PID)
 				m.state = stateConfirmKill
 				m.rebuildTable()
 				return m, nil
@@ -180,6 +183,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if entry != nil {
 					entryCopy := *entry
 					m.selectedEntry = &entryCopy
+					m.confirmImpactPorts = impactedPortsByPID(m.entries, entryCopy.PID)
 					m.state = stateConfirmKill
 					m.rebuildTable()
 				}
@@ -198,6 +202,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == stateConfirmKill {
 			if key.Matches(msg, Keys.Esc) || msg.Text == "n" {
 				m.selectedEntry = nil
+				m.confirmImpactPorts = nil
 				m.state = stateTable
 				m.rebuildTable()
 				return m, nil
@@ -323,7 +328,7 @@ func (m Model) renderTableView(width int) string {
 	}
 	topParts = append(topParts, body)
 	if m.state == stateConfirmKill {
-		topParts = append(topParts, confirmKillView(m.selectedEntry, renderWidth))
+		topParts = append(topParts, confirmKillView(m.selectedEntry, m.confirmImpactPorts, renderWidth))
 	}
 
 	top := lipgloss.JoinVertical(lipgloss.Left, topParts...)
