@@ -94,7 +94,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(scanPortsCmd(m.scanner), tickCmd())
 	case killResultMsg:
 		if msg.err != nil {
-			m.statusMsg = fmt.Sprintf("✗ Failed: %s", msg.err)
+			m.statusMsg = formatKillFailure(msg.err)
 			m.statusIsErr = true
 		} else {
 			m.statusMsg = fmt.Sprintf("✓ Killed %s (PID %d)", msg.entry.ProcessName, msg.entry.PID)
@@ -162,7 +162,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if entry != nil {
 					info, err := m.processService.GetInfo(entry.PID)
 					if err != nil {
-						m.statusMsg = fmt.Sprintf("✗ Failed to get process info: %s", err.Error())
+						m.statusMsg = formatProcessInfoFailure(err)
 						m.statusIsErr = true
 						return m, statusClearCmd()
 					}
@@ -365,7 +365,7 @@ func (m Model) footerHints() string {
 
 func (m Model) statusLeft() string {
 	if m.err != nil {
-		return ErrorStyle.Render(fmt.Sprintf("⚠ Scan failed — %d ports (stale)", len(m.entries)))
+		return ErrorStyle.Render(formatScanStatus(m.err, len(m.entries)))
 	}
 	if m.statusMsg != "" {
 		style := SuccessStyle

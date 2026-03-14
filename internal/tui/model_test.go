@@ -33,6 +33,16 @@ func (mockProcessService) Kill(pid int32) error {
 	return nil
 }
 
+type mockProcessServiceInfoErr struct{}
+
+func (mockProcessServiceInfoErr) GetInfo(pid int32) (*types.ProcessInfo, error) {
+	return nil, errors.New("permission denied")
+}
+
+func (mockProcessServiceInfoErr) Kill(pid int32) error {
+	return nil
+}
+
 func testEntries() []types.PortEntry {
 	return []types.PortEntry{
 		{
@@ -162,5 +172,21 @@ func TestModelTableViewIncludesStatusBar(t *testing.T) {
 	}
 	if !strings.Contains(v.Content, "q: quit") {
 		t.Fatalf("expected footer help in view, got %q", v.Content)
+	}
+}
+
+func TestModelGetInfoErrorShowsActionableHint(t *testing.T) {
+	m := New(mockScanner{}, mockProcessServiceInfoErr{})
+	updated, _ := m.Update(portsLoadedMsg{entries: testEntries()})
+	m = updated.(Model)
+
+	updated2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	got := updated2.(Model)
+
+	if !strings.Contains(got.statusMsg, "Try running with sudo") {
+		t.Fatalf("expected actionable sudo hint in process info error, got %q", got.statusMsg)
+	}
+	if !got.statusIsErr {
+		t.Fatal("expected statusIsErr to be true")
 	}
 }

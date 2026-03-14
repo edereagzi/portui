@@ -153,6 +153,9 @@ func TestKillErrorShowsErrorMessage(t *testing.T) {
 	if !got.statusIsErr {
 		t.Fatal("expected statusIsErr to be true on error")
 	}
+	if strings.Count(got.statusMsg, "✗") != 1 {
+		t.Fatalf("expected single error prefix in status message, got %q", got.statusMsg)
+	}
 }
 
 func TestKillUsesSelectedRowPID(t *testing.T) {
