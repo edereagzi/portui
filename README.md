@@ -92,8 +92,8 @@ Note: self-update supports direct installs on macOS/Linux where the current `por
 
 ## Requirements
 
-- macOS or Linux (arm64 or amd64)
-- Go 1.26 or later (for building from source)
+- Runtime: macOS or Linux (arm64 or amd64)
+- Go is only required if you build from source (`go install` path)
 
 ## Why portui?
 
