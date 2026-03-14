@@ -2,7 +2,7 @@
 
 Port-first process manager TUI for macOS and Linux — see what's on your ports and kill it with one keystroke.
 
-![portui demo](docs/portui.gif)
+![portui demo](https://raw.githubusercontent.com/edereagzi/portui/main/docs/portui.gif)
 
 ## Installation
 
