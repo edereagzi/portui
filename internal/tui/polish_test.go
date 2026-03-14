@@ -92,6 +92,9 @@ func TestScanErrorShowsInStatusBar(t *testing.T) {
 	if !strings.Contains(v.Content, "⚠ Scan failed") {
 		t.Fatalf("expected warning in status bar, got %q", v.Content)
 	}
+	if !strings.Contains(v.Content, "Try running with sudo") {
+		t.Fatalf("expected actionable sudo hint in scan error, got %q", v.Content)
+	}
 	if !strings.Contains(v.Content, "2 ports") {
 		t.Fatalf("expected stale port count to remain visible, got %q", v.Content)
 	}
