@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"charm.land/bubbles/v2/table"
 
@@ -15,7 +16,7 @@ func buildTable(entries []types.PortEntry, width, height int) table.Model {
 		{Title: "PID", Width: 8},
 		{Title: "Process", Width: 20},
 		{Title: "User", Width: 12},
-		{Title: "Address", Width: 20},
+		{Title: "Bind", Width: 16},
 	}
 
 	rows := make([]table.Row, 0, len(entries))
@@ -26,7 +27,7 @@ func buildTable(entries []types.PortEntry, width, height int) table.Model {
 			fmt.Sprintf("%d", entry.PID),
 			entry.ProcessName,
 			entry.User,
-			entry.LocalAddr,
+			bindHost(entry.LocalAddr),
 		})
 	}
 
@@ -55,4 +56,34 @@ func buildTable(entries []types.PortEntry, width, height int) table.Model {
 	}
 
 	return table.New(opts...)
+}
+
+func bindHost(localAddr string) string {
+	addr := strings.TrimSpace(localAddr)
+	if addr == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(addr, "*:") || addr == "*" {
+		return "0.0.0.0"
+	}
+	if strings.HasPrefix(addr, ":::") {
+		return "::"
+	}
+
+	if strings.HasPrefix(addr, "[") {
+		if end := strings.Index(addr, "]"); end > 1 {
+			return addr[1:end]
+		}
+	}
+
+	if idx := strings.LastIndex(addr, ":"); idx > 0 {
+		host := addr[:idx]
+		if host == "*" {
+			return "0.0.0.0"
+		}
+		return host
+	}
+
+	return addr
 }
