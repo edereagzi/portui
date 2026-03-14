@@ -122,7 +122,7 @@ func TestModelPortsLoadedPopulatesEntriesAndRows(t *testing.T) {
 		t.Fatalf("expected %d table rows, got %d", len(entries), len(rows))
 	}
 
-	if rows[0][0] != "5432" || rows[0][3] != "postgres" {
+	if rows[0][0] != "5432" || rows[0][2] != "postgres" {
 		t.Fatalf("unexpected first row (expected sorted by port): %#v", rows[0])
 	}
 }
