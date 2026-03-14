@@ -11,22 +11,22 @@ import (
 func buildTable(entries []types.PortEntry, width, height int) table.Model {
 	cols := []table.Column{
 		{Title: "Port", Width: 8},
-		{Title: "Protocol", Width: 8},
-		{Title: "PID", Width: 8},
-		{Title: "Process", Width: 20},
-		{Title: "User", Width: 12},
 		{Title: "Address", Width: 20},
+		{Title: "Process", Width: 20},
+		{Title: "PID", Width: 8},
+		{Title: "Protocol", Width: 8},
+		{Title: "User", Width: 12},
 	}
 
 	rows := make([]table.Row, 0, len(entries))
 	for _, entry := range entries {
 		rows = append(rows, table.Row{
 			fmt.Sprintf("%d", entry.Port),
-			entry.Protocol,
-			fmt.Sprintf("%d", entry.PID),
-			entry.ProcessName,
-			entry.User,
 			entry.LocalAddr,
+			entry.ProcessName,
+			fmt.Sprintf("%d", entry.PID),
+			entry.Protocol,
+			entry.User,
 		})
 	}
 

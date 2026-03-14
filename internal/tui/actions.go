@@ -13,14 +13,14 @@ import (
 )
 
 func selectedPortEntry(entries []types.PortEntry, row table.Row) *types.PortEntry {
-	if len(row) < 3 {
+	if len(row) < 4 {
 		return nil
 	}
 	port, err := strconv.Atoi(row[0])
 	if err != nil {
 		return nil
 	}
-	pid, err := strconv.Atoi(row[2])
+	pid, err := strconv.Atoi(row[3])
 	if err != nil {
 		return nil
 	}

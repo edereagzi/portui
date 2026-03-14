@@ -72,7 +72,7 @@ func (m *Model) rebuildTable() {
 	m.table = buildTable(m.filtered, m.width, h)
 	if prevRow != nil {
 		for i, row := range m.table.Rows() {
-			if len(row) >= 3 && len(prevRow) >= 3 && row[0] == prevRow[0] && row[2] == prevRow[2] {
+			if len(row) >= 4 && len(prevRow) >= 4 && row[0] == prevRow[0] && row[3] == prevRow[3] {
 				m.table.SetCursor(i)
 				break
 			}
