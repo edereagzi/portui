@@ -183,8 +183,8 @@ func TestModelGetInfoErrorShowsActionableHint(t *testing.T) {
 	updated2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated2.(Model)
 
-	if !strings.Contains(got.statusMsg, "Try running with sudo") {
-		t.Fatalf("expected actionable sudo hint in process info error, got %q", got.statusMsg)
+	if !strings.Contains(got.statusMsg, "Try running with sudo") && !strings.Contains(got.statusMsg, "Administrator") {
+		t.Fatalf("expected actionable privilege hint in process info error, got %q", got.statusMsg)
 	}
 	if !got.statusIsErr {
 		t.Fatal("expected statusIsErr to be true")

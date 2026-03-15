@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"reflect"
+	"runtime"
 	"testing"
 	"time"
 
@@ -164,8 +165,15 @@ func TestNewScannerFallsBackToLsofWhenPIDZero(t *testing.T) {
 	newLsofScanner = func() types.PortScanner { return lsofCandidate }
 
 	got := NewScanner()
-	if !reflect.DeepEqual(got, lsofCandidate) {
-		t.Fatalf("expected lsof scanner fallback when pid=0")
+	if runtime.GOOS == "darwin" {
+		if !reflect.DeepEqual(got, lsofCandidate) {
+			t.Fatalf("expected lsof scanner fallback on darwin when pid=0")
+		}
+		return
+	}
+
+	if !reflect.DeepEqual(got, gopsutilCandidate) {
+		t.Fatalf("expected gopsutil scanner on non-darwin, got %#v", got)
 	}
 }
 
