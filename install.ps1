@@ -51,6 +51,70 @@ function Get-ExpectedChecksum([string]$checksumsPath, [string]$assetName) {
     return ($line -split '\s+')[0]
 }
 
+function Normalize-PathEntry([string]$value) {
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        return $null
+    }
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($value.Trim().Trim('"'))
+    $trimmed = $expanded.TrimEnd('\\')
+    if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        return $null
+    }
+
+    return $trimmed.ToLowerInvariant()
+}
+
+function Ensure-PathContains([string]$targetDir) {
+    $target = Normalize-PathEntry $targetDir
+    if (-not $target) {
+        throw "invalid install directory for PATH update"
+    }
+
+    $result = @{
+        UserPathUpdated = $false
+        ProcessPathUpdated = $false
+    }
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $userEntries = @()
+    if (-not [string]::IsNullOrWhiteSpace($userPath)) {
+        $userEntries = $userPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    }
+
+    $userNormalized = $userEntries | ForEach-Object { Normalize-PathEntry $_ } | Where-Object { $_ }
+    if ($userNormalized -notcontains $target) {
+        $newUserPath = if ([string]::IsNullOrWhiteSpace($userPath)) {
+            $targetDir
+        }
+        else {
+            "$userPath;$targetDir"
+        }
+
+        [Environment]::SetEnvironmentVariable("Path", $newUserPath, "User")
+        $result.UserPathUpdated = $true
+    }
+
+    $processPath = $env:PATH
+    $processEntries = @()
+    if (-not [string]::IsNullOrWhiteSpace($processPath)) {
+        $processEntries = $processPath -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    }
+
+    $processNormalized = $processEntries | ForEach-Object { Normalize-PathEntry $_ } | Where-Object { $_ }
+    if ($processNormalized -notcontains $target) {
+        $env:PATH = if ([string]::IsNullOrWhiteSpace($processPath)) {
+            $targetDir
+        }
+        else {
+            "$targetDir;$processPath"
+        }
+        $result.ProcessPathUpdated = $true
+    }
+
+    return $result
+}
+
 $tmpDir = Join-Path $env:TEMP ("portui-install-" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
@@ -87,13 +151,16 @@ try {
     $destBin = Join-Path $InstallDir $BinaryName
     Copy-Item -Force -Path $sourceBin -Destination $destBin
 
+    $pathUpdate = Ensure-PathContains -targetDir $InstallDir
+    if ($pathUpdate.UserPathUpdated) {
+        Write-Output "Added $InstallDir to user PATH."
+    }
+    if ($pathUpdate.ProcessPathUpdated) {
+        Write-Output "Updated current session PATH."
+    }
+
     Write-Output "Installed: $destBin"
     & $destBin -v
-
-    $pathParts = ($env:PATH -split ';' | ForEach-Object { $_.Trim() })
-    if ($pathParts -notcontains $InstallDir) {
-        Write-Warning "$InstallDir is not in PATH. Add it from Windows Environment Variables."
-    }
 }
 finally {
     try {
