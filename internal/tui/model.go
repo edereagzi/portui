@@ -148,6 +148,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if key.Matches(msg, Keys.Kill) && m.selectedEntry != nil {
+				if isUnkillableEntry(m.selectedEntry) {
+					m.statusMsg = "✗ Kill not available for this entry on current OS"
+					m.statusIsErr = true
+					return m, statusClearCmd()
+				}
 				m.confirmImpactPorts = impactedPortsByPID(m.entries, m.selectedEntry.PID)
 				m.state = stateConfirmKill
 				m.rebuildTable()
@@ -160,6 +165,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key.Matches(msg, Keys.Enter) {
 				entry := selectedPortEntry(m.filtered, m.table.SelectedRow())
 				if entry != nil {
+					if isUnkillableEntry(entry) {
+						m.statusMsg = formatUnkillableEntryInfo(entry)
+						m.statusIsErr = true
+						return m, statusClearCmd()
+					}
 					info, err := m.processService.GetInfo(entry.PID)
 					if err != nil {
 						m.statusMsg = formatProcessInfoFailure(err)
@@ -181,6 +191,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if key.Matches(msg, Keys.Kill) {
 				entry := selectedPortEntry(m.filtered, m.table.SelectedRow())
 				if entry != nil {
+					if isUnkillableEntry(entry) {
+						m.statusMsg = "✗ Kill not available for this entry on current OS"
+						m.statusIsErr = true
+						return m, statusClearCmd()
+					}
 					entryCopy := *entry
 					m.selectedEntry = &entryCopy
 					m.confirmImpactPorts = impactedPortsByPID(m.entries, entryCopy.PID)

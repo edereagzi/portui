@@ -183,8 +183,45 @@ func TestModelGetInfoErrorShowsActionableHint(t *testing.T) {
 	updated2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated2.(Model)
 
-	if !strings.Contains(got.statusMsg, "Try running with sudo") {
-		t.Fatalf("expected actionable sudo hint in process info error, got %q", got.statusMsg)
+	if !strings.Contains(got.statusMsg, "Try running with sudo") && !strings.Contains(got.statusMsg, "Administrator") {
+		t.Fatalf("expected actionable privilege hint in process info error, got %q", got.statusMsg)
+	}
+	if !got.statusIsErr {
+		t.Fatal("expected statusIsErr to be true")
+	}
+}
+
+func TestModelDetailGuardForWindowsSystemPIDShowsActionableMessage(t *testing.T) {
+	origTuiGOOS := currentTuiGOOS
+	origErrGOOS := currentErrorsGOOS
+	currentTuiGOOS = "windows"
+	currentErrorsGOOS = "windows"
+	t.Cleanup(func() {
+		currentTuiGOOS = origTuiGOOS
+		currentErrorsGOOS = origErrGOOS
+	})
+
+	entries := []types.PortEntry{{
+		Port:        5357,
+		Protocol:    "tcp",
+		PID:         4,
+		ProcessName: "System",
+		User:        "NT AUTHORITY",
+		LocalAddr:   "0.0.0.0:5357",
+	}}
+
+	m := New(mockScanner{}, mockProcessService{})
+	updated, _ := m.Update(portsLoadedMsg{entries: entries})
+	m = updated.(Model)
+
+	updated2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	got := updated2.(Model)
+
+	if got.state != stateTable {
+		t.Fatalf("expected stateTable when detail is guarded, got %v", got.state)
+	}
+	if !strings.Contains(got.statusMsg, "unavailable") {
+		t.Fatalf("expected actionable unavailable message, got %q", got.statusMsg)
 	}
 	if !got.statusIsErr {
 		t.Fatal("expected statusIsErr to be true")
