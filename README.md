@@ -1,39 +1,32 @@
 # portui
 
-Port-first process manager TUI for macOS and Linux — see what's on your ports and kill it with one keystroke.
+Port-first process manager TUI for macOS, Linux, and Windows.
 
 ![portui demo](https://raw.githubusercontent.com/edereagzi/portui/main/docs/portui.gif)
 
 ## Installation
 
-**Recommended (installer script, no Go required):**
+Install portui:
+
+macOS / Linux (Recommended):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | sh
 ```
 
-Optional installer settings:
+Windows (Recommended):
 
-```bash
-# Pin a specific version
-curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env VERSION=v0.1.1 sh
-
-# Force install directory
-curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env INSTALL_DIR="$HOME/.local/bin" sh
-
-# Disable checksum verification (not recommended)
-curl -fsSL https://raw.githubusercontent.com/edereagzi/portui/main/install.sh | env VERIFY_CHECKSUM=0 sh
+```powershell
+irm https://raw.githubusercontent.com/edereagzi/portui/main/install.ps1 | iex
 ```
 
-Installer environment variables:
+From source (Go 1.26+):
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VERSION` | `latest` | Release tag to install (`v0.1.1`, `v0.2.0`, etc.) |
-| `INSTALL_DIR` | auto (`/usr/local/bin` if writable, else `~/.local/bin`) | Destination directory |
-| `VERIFY_CHECKSUM` | `1` | `1` verifies SHA256 against release `checksums.txt` |
+```bash
+go install github.com/edereagzi/portui/cmd/portui@latest
+```
 
-**Manual binary install** (fallback):
+Manual binaries (fallback):
 
 ```bash
 # macOS (Apple Silicon)
@@ -53,10 +46,12 @@ curl -sL https://github.com/edereagzi/portui/releases/latest/download/portui_lin
 sudo mv portui /usr/local/bin/
 ```
 
-**From source** (requires Go 1.26+):
-
-```bash
-go install github.com/edereagzi/portui/cmd/portui@latest
+```powershell
+# Windows (amd64)
+Invoke-WebRequest -Uri https://github.com/edereagzi/portui/releases/latest/download/portui_windows_amd64.zip -OutFile portui_windows_amd64.zip
+Expand-Archive -Path .\portui_windows_amd64.zip -DestinationPath . -Force
+New-Item -ItemType Directory -Force -Path "$HOME\bin" | Out-Null
+Move-Item -Force .\portui.exe "$HOME\bin\portui.exe"
 ```
 
 ## Usage
@@ -75,7 +70,7 @@ Update to latest release:
 portui update
 ```
 
-Note: self-update supports direct installs on macOS/Linux where the current `portui` binary path is writable.
+Self-update works when the current `portui` binary path is writable. On Windows, replacement is scheduled and completes after `portui` exits.
 
 ## Keybindings
 
@@ -92,8 +87,14 @@ Note: self-update supports direct installs on macOS/Linux where the current `por
 
 ## Requirements
 
-- Runtime: macOS or Linux (arm64 or amd64)
+- Runtime: macOS/Linux (arm64 or amd64), Windows (amd64/arm64)
 - Go is only required if you build from source (`go install` path)
+
+## Windows notes
+
+- On Windows, some listening sockets can appear with PID `0` or `4` due to Windows API ownership limitations.
+- In those cases process name/user can be missing or mapped to system processes.
+- This is a known Windows networking API limitation, not a TUI rendering bug.
 
 ## Why portui?
 

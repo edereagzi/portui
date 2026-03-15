@@ -2,10 +2,12 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -45,7 +47,7 @@ func TestExtractBinary(t *testing.T) {
 		"portui":    "binary-content",
 	})
 
-	got, err := extractBinary(archive)
+	got, err := extractBinary("linux", archive)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,9 +61,45 @@ func TestExtractBinaryNotFound(t *testing.T) {
 		"README.md": "hello",
 	})
 
-	_, err := extractBinary(archive)
+	_, err := extractBinary("linux", archive)
 	if err == nil {
 		t.Fatal("expected error when binary is missing")
+	}
+}
+
+func TestExtractBinaryWindowsZip(t *testing.T) {
+	archive := buildZip(t, map[string]string{
+		"portui.exe": "windows-binary",
+	})
+
+	got, err := extractBinary("windows", archive)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if string(got) != "windows-binary" {
+		t.Fatalf("unexpected binary content: %q", string(got))
+	}
+}
+
+func TestReleaseAssetName(t *testing.T) {
+	if got := releaseAssetName("linux", "amd64"); got != "portui_linux_amd64.tar.gz" {
+		t.Fatalf("unexpected linux asset name: %s", got)
+	}
+	if got := releaseAssetName("windows", "amd64"); got != "portui_windows_amd64.zip" {
+		t.Fatalf("unexpected windows asset name: %s", got)
+	}
+}
+
+func TestWindowsUpdateScript(t *testing.T) {
+	s := windowsUpdateScript(`C:\\tools\\portui.exe`, `C:\\tools\\portui.exe.new`, `C:\\tools\\portui.exe.old`)
+	if !strings.Contains(s, "move /Y \"%DST%\" \"%BAK%\"") {
+		t.Fatalf("expected script to move destination to backup, got: %s", s)
+	}
+	if !strings.Contains(s, "move /Y \"%NEW%\" \"%DST%\"") {
+		t.Fatalf("expected script to move new binary into place, got: %s", s)
+	}
+	if !strings.Contains(s, "move /Y \"%BAK%\" \"%DST%\"") {
+		t.Fatalf("expected script to restore backup on failure, got: %s", s)
 	}
 }
 
@@ -127,6 +165,29 @@ func buildTarGz(t *testing.T, files map[string]string) []byte {
 	}
 	if err := gz.Close(); err != nil {
 		t.Fatalf("close gzip writer: %v", err)
+	}
+
+	return buf.Bytes()
+}
+
+func buildZip(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+
+	for name, content := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("create zip entry: %v", err)
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			t.Fatalf("write zip entry: %v", err)
+		}
+	}
+
+	if err := zw.Close(); err != nil {
+		t.Fatalf("close zip writer: %v", err)
 	}
 
 	return buf.Bytes()

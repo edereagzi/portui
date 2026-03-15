@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,6 +12,21 @@ import (
 
 	"github.com/edereagzi/portui/internal/types"
 )
+
+var currentTuiGOOS = runtime.GOOS
+
+func isUnkillableEntry(entry *types.PortEntry) bool {
+	if entry == nil {
+		return true
+	}
+	if entry.PID <= 0 {
+		return true
+	}
+	if currentTuiGOOS == "windows" && entry.PID == 4 {
+		return true
+	}
+	return false
+}
 
 func selectedPortEntry(entries []types.PortEntry, row table.Row) *types.PortEntry {
 	if len(row) < 4 {

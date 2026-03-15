@@ -4,12 +4,29 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/edereagzi/portui/internal/types"
 )
 
 func TestFormatScanStatusPermission(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "darwin"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
 	msg := formatScanStatus(errors.New("permission denied"), 2)
 	if !strings.Contains(msg, "Try running with sudo") {
 		t.Fatalf("expected actionable sudo hint, got %q", msg)
+	}
+}
+
+func TestFormatScanStatusPermissionWindows(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "windows"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
+	msg := formatScanStatus(errors.New("access is denied"), 2)
+	if !strings.Contains(msg, "Administrator") {
+		t.Fatalf("expected Windows admin hint, got %q", msg)
 	}
 }
 
@@ -28,9 +45,24 @@ func TestFormatScanStatusLsofMissing(t *testing.T) {
 }
 
 func TestFormatKillFailurePermission(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "darwin"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
 	msg := formatKillFailure(errors.New("permission denied (PID 1)"))
 	if !strings.Contains(msg, "Try running with sudo") {
 		t.Fatalf("expected sudo hint for kill failure, got %q", msg)
+	}
+}
+
+func TestFormatKillFailurePermissionWindows(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "windows"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
+	msg := formatKillFailure(errors.New("access is denied"))
+	if !strings.Contains(msg, "Administrator") {
+		t.Fatalf("expected Windows admin hint for kill failure, got %q", msg)
 	}
 }
 
@@ -42,8 +74,23 @@ func TestFormatKillFailureNotFound(t *testing.T) {
 }
 
 func TestFormatProcessInfoFailurePermission(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "darwin"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
 	msg := formatProcessInfoFailure(errors.New("operation not permitted"))
 	if !strings.Contains(msg, "Try running with sudo") {
 		t.Fatalf("expected sudo hint for process info failure, got %q", msg)
+	}
+}
+
+func TestFormatUnkillableEntryInfoWindowsPID4(t *testing.T) {
+	origGOOS := currentErrorsGOOS
+	currentErrorsGOOS = "windows"
+	t.Cleanup(func() { currentErrorsGOOS = origGOOS })
+
+	msg := formatUnkillableEntryInfo(&types.PortEntry{PID: 4})
+	if !strings.Contains(msg, "Windows") {
+		t.Fatalf("expected Windows-specific unkillable hint, got %q", msg)
 	}
 }

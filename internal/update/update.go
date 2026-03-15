@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -41,7 +43,7 @@ func Run(currentVersion string) (string, bool, error) {
 		return latestTag, false, nil
 	}
 
-	assetName := fmt.Sprintf("portui_%s_%s.tar.gz", osName, arch)
+	assetName := releaseAssetName(osName, arch)
 	base := fmt.Sprintf("https://github.com/%s/releases/download/%s", repo, latestTag)
 	assetURL := fmt.Sprintf("%s/%s", base, assetName)
 	checksumsURL := fmt.Sprintf("%s/checksums.txt", base)
@@ -64,7 +66,7 @@ func Run(currentVersion string) (string, bool, error) {
 		return "", false, fmt.Errorf("checksum mismatch for %s", assetName)
 	}
 
-	binaryBytes, err := extractBinary(archiveBytes)
+	binaryBytes, err := extractBinary(osName, archiveBytes)
 	if err != nil {
 		return "", false, err
 	}
@@ -94,7 +96,7 @@ func latestTag() (string, error) {
 func platform() (string, string, error) {
 	var osName string
 	switch runtime.GOOS {
-	case "darwin", "linux":
+	case "darwin", "linux", "windows":
 		osName = runtime.GOOS
 	default:
 		return "", "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
@@ -109,6 +111,13 @@ func platform() (string, string, error) {
 	}
 
 	return osName, arch, nil
+}
+
+func releaseAssetName(osName, arch string) string {
+	if osName == "windows" {
+		return fmt.Sprintf("portui_%s_%s.zip", osName, arch)
+	}
+	return fmt.Sprintf("portui_%s_%s.tar.gz", osName, arch)
 }
 
 func sameVersion(current, latest string) bool {
@@ -157,7 +166,14 @@ func sha256Sum(data []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func extractBinary(archive []byte) ([]byte, error) {
+func extractBinary(osName string, archive []byte) ([]byte, error) {
+	if osName == "windows" {
+		return extractBinaryZip(archive)
+	}
+	return extractBinaryTarGz(archive)
+}
+
+func extractBinaryTarGz(archive []byte) ([]byte, error) {
 	gz, err := gzip.NewReader(bytes.NewReader(archive))
 	if err != nil {
 		return nil, err
@@ -184,6 +200,30 @@ func extractBinary(archive []byte) ([]byte, error) {
 	return nil, errors.New("portui binary not found in archive")
 }
 
+func extractBinaryZip(archive []byte) ([]byte, error) {
+	r, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		if filepath.Base(f.Name) != "portui.exe" {
+			continue
+		}
+		rc, openErr := f.Open()
+		if openErr != nil {
+			return nil, openErr
+		}
+		defer rc.Close()
+		return io.ReadAll(rc)
+	}
+
+	return nil, errors.New("portui binary not found in archive")
+}
+
 func replaceCurrentExecutable(binary []byte) error {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -194,9 +234,40 @@ func replaceCurrentExecutable(binary []byte) error {
 	if err := os.WriteFile(tempPath, binary, 0o755); err != nil {
 		return fmt.Errorf("write temp binary: %w", err)
 	}
+
+	if runtime.GOOS == "windows" {
+		if err := scheduleWindowsReplacement(exePath, tempPath); err != nil {
+			_ = os.Remove(tempPath)
+			return err
+		}
+		return nil
+	}
+
 	if err := os.Rename(tempPath, exePath); err != nil {
 		_ = os.Remove(tempPath)
 		return fmt.Errorf("replace executable: %w", err)
 	}
 	return nil
+}
+
+func scheduleWindowsReplacement(exePath, tempPath string) error {
+	backupPath := exePath + ".old"
+	scriptPath := exePath + ".update.cmd"
+	script := windowsUpdateScript(exePath, tempPath, backupPath)
+
+	if err := os.WriteFile(scriptPath, []byte(script), 0o600); err != nil {
+		return fmt.Errorf("write update script: %w", err)
+	}
+
+	cmd := exec.Command("cmd", "/C", "start", "", "/B", scriptPath)
+	if err := cmd.Start(); err != nil {
+		_ = os.Remove(scriptPath)
+		return fmt.Errorf("launch update script: %w", err)
+	}
+
+	return nil
+}
+
+func windowsUpdateScript(exePath, tempPath, backupPath string) string {
+	return fmt.Sprintf("@echo off\r\nsetlocal\r\nset \"DST=%s\"\r\nset \"NEW=%s\"\r\nset \"BAK=%s\"\r\nfor /l %%%%i in (1,1,30) do (\r\n  move /Y \"%%DST%%\" \"%%BAK%%\" >nul 2>nul && goto replaced\r\n  timeout /t 1 /nobreak >nul\r\n)\r\nexit /b 1\r\n:replaced\r\nmove /Y \"%%NEW%%\" \"%%DST%%\" >nul 2>nul && goto done\r\nmove /Y \"%%BAK%%\" \"%%DST%%\" >nul 2>nul\r\nexit /b 1\r\n:done\r\ndel /f /q \"%%BAK%%\" >nul 2>nul\r\ndel /f /q \"%%~f0\" >nul 2>nul\r\n", exePath, tempPath, backupPath)
 }

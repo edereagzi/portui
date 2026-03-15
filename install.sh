@@ -73,11 +73,10 @@ resolve_urls() {
     arch="$2"
     normalized_version="$3"
 
+    asset="${BINARY}_${os}_${arch}.tar.gz"
     if [ "$VERSION" = "latest" ]; then
-        asset="${BINARY}_${os}_${arch}.tar.gz"
         base_url="https://github.com/${REPO}/releases/latest/download"
     else
-        asset="${BINARY}_${normalized_version#v}_${os}_${arch}.tar.gz"
         base_url="https://github.com/${REPO}/releases/download/${normalized_version}"
     fi
 
@@ -132,9 +131,16 @@ install_binary() {
     printf '%s\n' "$dest_bin"
 }
 
+extract_archive() {
+    archive_path="$1"
+    tmp_dir="$2"
+
+    need_cmd tar
+    tar -xzf "$archive_path" -C "$tmp_dir"
+}
+
 main() {
     need_cmd uname
-    need_cmd tar
     need_cmd mktemp
     need_cmd awk
 
@@ -168,7 +174,7 @@ main() {
     fi
 
     info "Extracting archive..."
-    tar -xzf "$archive_path" -C "$tmp_dir"
+    extract_archive "$archive_path" "$tmp_dir"
     [ -f "${tmp_dir}/${BINARY}" ] || fail "binary ${BINARY} not found in archive"
 
     info "Installing to ${install_dir}..."

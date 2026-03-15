@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime"
 
 	"github.com/edereagzi/portui/internal/process"
 	"github.com/edereagzi/portui/internal/scanner"
@@ -40,7 +41,11 @@ func main() {
 			os.Exit(1)
 		}
 		if updated {
-			fmt.Printf("updated to %s\n", latest)
+			if runtime.GOOS == "windows" {
+				fmt.Printf("update to %s has been scheduled; restart portui to finish replacement\n", latest)
+			} else {
+				fmt.Printf("updated to %s\n", latest)
+			}
 		} else {
 			fmt.Printf("already up to date (%s)\n", latest)
 		}

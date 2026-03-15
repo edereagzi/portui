@@ -277,3 +277,36 @@ func TestConfirmImpactSnapshotStaysStableDuringRefresh(t *testing.T) {
 		t.Fatalf("expected snapshot to remain stable during confirm state, got %q", got)
 	}
 }
+
+func TestKillDoesNotOpenConfirmForWindowsSystemPID(t *testing.T) {
+	origGOOS := currentTuiGOOS
+	t.Cleanup(func() { currentTuiGOOS = origGOOS })
+	currentTuiGOOS = "windows"
+
+	svc := &mockProcessServiceKill{}
+	entries := []types.PortEntry{
+		{Port: 80, Protocol: "tcp", PID: 4, ProcessName: "System", User: "NT AUTHORITY\\SYSTEM", LocalAddr: "0.0.0.0"},
+	}
+	m := New(mockScanner{}, svc)
+	updated, _ := m.Update(portsLoadedMsg{entries: entries})
+	m = updated.(Model)
+
+	updated2, cmd := m.Update(tea.KeyPressMsg{Text: "x"})
+	got := updated2.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected status clear cmd for blocked kill")
+	}
+	if got.state != stateTable {
+		t.Fatalf("expected to remain in table state, got %v", got.state)
+	}
+	if got.selectedEntry != nil {
+		t.Fatal("expected selected entry to remain nil when kill is blocked")
+	}
+	if !got.statusIsErr {
+		t.Fatal("expected blocked kill to set error status")
+	}
+	if !strings.Contains(got.statusMsg, "Kill not available") {
+		t.Fatalf("expected blocked kill message, got %q", got.statusMsg)
+	}
+}

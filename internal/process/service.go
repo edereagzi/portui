@@ -2,6 +2,7 @@ package process
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -10,7 +11,19 @@ import (
 	"github.com/edereagzi/portui/internal/types"
 )
 
-const killGracePeriod = 3 * time.Second
+var killGracePeriod = 3 * time.Second
+var killPollInterval = 200 * time.Millisecond
+var currentGOOS = runtime.GOOS
+
+type managedProcess interface {
+	Terminate() error
+	Kill() error
+	IsRunning() (bool, error)
+}
+
+var newManagedProcess = func(pid int32) (managedProcess, error) {
+	return gprocess.NewProcess(pid)
+}
 
 type GopsutilProcessService struct{}
 
@@ -56,10 +69,20 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d", pid)
 	}
+	if currentGOOS == "windows" && pid == 4 {
+		return fmt.Errorf("system-owned listener (PID 4) cannot be terminated on windows")
+	}
 
-	p, err := gprocess.NewProcess(pid)
+	p, err := newManagedProcess(pid)
 	if err != nil {
 		return wrapProcessError(pid, err)
+	}
+
+	if currentGOOS == "windows" {
+		if err := p.Kill(); err != nil {
+			return wrapProcessError(pid, err)
+		}
+		return nil
 	}
 
 	if err := p.Terminate(); err != nil {
@@ -67,20 +90,37 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 	}
 
 	deadline := time.After(killGracePeriod)
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(killPollInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-deadline:
-			if running, _ := p.IsRunning(); running {
+			running, runningErr := p.IsRunning()
+			if runningErr != nil {
+				if isProcessGoneError(runningErr) {
+					return nil
+				}
+				return wrapProcessError(pid, runningErr)
+			}
+			if running {
 				if err := p.Kill(); err != nil {
+					if isProcessGoneError(err) {
+						return nil
+					}
 					return wrapProcessError(pid, err)
 				}
 			}
 			return nil
 		case <-ticker.C:
-			if running, _ := p.IsRunning(); !running {
+			running, runningErr := p.IsRunning()
+			if runningErr != nil {
+				if isProcessGoneError(runningErr) {
+					return nil
+				}
+				return wrapProcessError(pid, runningErr)
+			}
+			if !running {
 				return nil
 			}
 		}
@@ -90,11 +130,26 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 func wrapProcessError(pid int32, err error) error {
 	msg := strings.ToLower(err.Error())
 	switch {
-	case strings.Contains(msg, "already finished") || strings.Contains(msg, "no such process"):
+	case isProcessGoneMessage(msg):
 		return fmt.Errorf("process not found (PID %d): %w", pid, err)
-	case strings.Contains(msg, "not permitted") || strings.Contains(msg, "permission denied") || strings.Contains(msg, "operation not permitted"):
-		return fmt.Errorf("permission denied (PID %d) - try running with sudo: %w", pid, err)
+	case isPermissionDeniedMessage(msg):
+		return fmt.Errorf("permission denied (PID %d): %w", pid, err)
 	default:
 		return fmt.Errorf("process error (PID %d): %w", pid, err)
 	}
+}
+
+func isProcessGoneError(err error) bool {
+	return isProcessGoneMessage(strings.ToLower(err.Error()))
+}
+
+func isProcessGoneMessage(msg string) bool {
+	return strings.Contains(msg, "already finished") || strings.Contains(msg, "no such process")
+}
+
+func isPermissionDeniedMessage(msg string) bool {
+	return strings.Contains(msg, "not permitted") ||
+		strings.Contains(msg, "permission denied") ||
+		strings.Contains(msg, "operation not permitted") ||
+		strings.Contains(msg, "access is denied")
 }
