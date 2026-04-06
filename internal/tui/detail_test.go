@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ type mockProcessServiceDetail struct {
 	infoPIDs []int32
 }
 
-func (m *mockProcessServiceDetail) GetInfo(pid int32) (*types.ProcessInfo, error) {
+func (m *mockProcessServiceDetail) GetInfo(ctx context.Context, pid int32) (*types.ProcessInfo, error) {
 	m.infoPIDs = append(m.infoPIDs, pid)
 	if m.infoErr != nil {
 		return nil, m.infoErr
@@ -30,7 +31,7 @@ func (m *mockProcessServiceDetail) GetInfo(pid int32) (*types.ProcessInfo, error
 	return &types.ProcessInfo{PID: pid}, nil
 }
 
-func (m *mockProcessServiceDetail) Kill(pid int32) error {
+func (m *mockProcessServiceDetail) Kill(ctx context.Context, pid int32) error {
 	return nil
 }
 
@@ -102,17 +103,26 @@ func TestDetailEnterKeyTransitionsToDetailState(t *testing.T) {
 	svc := &mockProcessServiceDetail{info: info}
 	m := newDetailTestModel(svc)
 
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated.(Model)
 
 	if got.state != stateDetail {
 		t.Fatalf("expected stateDetail, got %v", got.state)
 	}
-	if got.detailInfo == nil {
-		t.Fatal("expected detailInfo to be set")
-	}
 	if got.selectedEntry == nil {
 		t.Fatal("expected selectedEntry to be set")
+	}
+
+	if cmd == nil {
+		t.Fatal("expected async command for GetInfo")
+	}
+
+	msg := cmd()
+	updated2, _ := got.Update(msg)
+	got2 := updated2.(Model)
+
+	if got2.detailInfo == nil {
+		t.Fatal("expected detailInfo to be set after processInfoLoadedMsg")
 	}
 	if len(svc.infoPIDs) != 1 || svc.infoPIDs[0] != 4321 {
 		t.Fatalf("expected GetInfo(4321) (first entry sorted by port), got %v", svc.infoPIDs)
@@ -123,13 +133,21 @@ func TestDetailEnterKeyIgnoresGetInfoError(t *testing.T) {
 	svc := &mockProcessServiceDetail{infoErr: errors.New("boom")}
 	m := newDetailTestModel(svc)
 
-	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	got := updated.(Model)
 
-	if got.state != stateTable {
-		t.Fatalf("expected stateTable on GetInfo error, got %v", got.state)
+	if got.state != stateDetail {
+		t.Fatalf("expected stateDetail while loading, got %v", got.state)
 	}
-	if got.detailInfo != nil {
+
+	msg := cmd()
+	updated2, _ := got.Update(msg)
+	got2 := updated2.(Model)
+
+	if got2.state != stateTable {
+		t.Fatalf("expected stateTable on GetInfo error, got %v", got2.state)
+	}
+	if got2.detailInfo != nil {
 		t.Fatal("expected detailInfo to remain nil on GetInfo error")
 	}
 }
