@@ -31,6 +31,6 @@ type PortScanner interface {
 
 // ProcessService provides process information and management.
 type ProcessService interface {
-	GetInfo(pid int32) (*ProcessInfo, error)
-	Kill(pid int32) error
+	GetInfo(ctx context.Context, pid int32) (*ProcessInfo, error)
+	Kill(ctx context.Context, pid int32) error
 }

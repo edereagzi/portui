@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -19,17 +20,17 @@ type mockManagedProcess struct {
 	killCalls      int
 }
 
-func (m *mockManagedProcess) Terminate() error {
+func (m *mockManagedProcess) TerminateWithContext(ctx context.Context) error {
 	m.terminateCalls++
 	return m.terminateErr
 }
 
-func (m *mockManagedProcess) Kill() error {
+func (m *mockManagedProcess) KillWithContext(ctx context.Context) error {
 	m.killCalls++
 	return m.killErr
 }
 
-func (m *mockManagedProcess) IsRunning() (bool, error) {
+func (m *mockManagedProcess) IsRunningWithContext(ctx context.Context) (bool, error) {
 	err := error(nil)
 	if m.runningIdx < len(m.runningErrs) {
 		err = m.runningErrs[m.runningIdx]
@@ -50,8 +51,9 @@ func (m *mockManagedProcess) IsRunning() (bool, error) {
 
 func TestGetInfoCurrentProcess(t *testing.T) {
 	svc := NewProcessService()
+	ctx := context.Background()
 
-	info, err := svc.GetInfo(int32(os.Getpid()))
+	info, err := svc.GetInfo(ctx, int32(os.Getpid()))
 	if err != nil {
 		t.Fatalf("GetInfo returned error: %v", err)
 	}
@@ -68,8 +70,9 @@ func TestGetInfoCurrentProcess(t *testing.T) {
 
 func TestGetInfoInvalidPID(t *testing.T) {
 	svc := NewProcessService()
+	ctx := context.Background()
 
-	info, err := svc.GetInfo(-1)
+	info, err := svc.GetInfo(ctx, -1)
 	if err == nil {
 		t.Fatal("expected error for invalid PID")
 	}
@@ -80,8 +83,9 @@ func TestGetInfoInvalidPID(t *testing.T) {
 
 func TestGetInfoNonExistentPID(t *testing.T) {
 	svc := NewProcessService()
+	ctx := context.Background()
 
-	info, err := svc.GetInfo(99999999)
+	info, err := svc.GetInfo(ctx, 99999999)
 	if err == nil {
 		t.Fatal("expected error for non-existent PID")
 	}
@@ -92,8 +96,9 @@ func TestGetInfoNonExistentPID(t *testing.T) {
 
 func TestKillNonExistent(t *testing.T) {
 	svc := NewProcessService()
+	ctx := context.Background()
 
-	err := svc.Kill(99999999)
+	err := svc.Kill(ctx, 99999999)
 	if err == nil {
 		t.Fatal("expected error for non-existent PID")
 	}
@@ -101,8 +106,9 @@ func TestKillNonExistent(t *testing.T) {
 
 func TestErrorMessagesFriendly(t *testing.T) {
 	svc := NewProcessService()
+	ctx := context.Background()
 
-	_, err := svc.GetInfo(-1)
+	_, err := svc.GetInfo(ctx, -1)
 	if err == nil {
 		t.Fatal("expected error for invalid PID")
 	}
@@ -131,7 +137,8 @@ func TestKillUsesHardKillOnWindows(t *testing.T) {
 	currentGOOS = "windows"
 
 	svc := NewProcessService()
-	if err := svc.Kill(4242); err != nil {
+	ctx := context.Background()
+	if err := svc.Kill(ctx, 4242); err != nil {
 		t.Fatalf("Kill returned error: %v", err)
 	}
 
@@ -159,7 +166,8 @@ func TestKillBlocksWindowsSystemPID4(t *testing.T) {
 	currentGOOS = "windows"
 
 	svc := NewProcessService()
-	err := svc.Kill(4)
+	ctx := context.Background()
+	err := svc.Kill(ctx, 4)
 	if err == nil {
 		t.Fatal("expected error for PID 4 on windows")
 	}
@@ -195,7 +203,8 @@ func TestKillUsesTerminateFirstOnUnix(t *testing.T) {
 	killPollInterval = 1 * time.Millisecond
 
 	svc := NewProcessService()
-	if err := svc.Kill(3131); err != nil {
+	ctx := context.Background()
+	if err := svc.Kill(ctx, 3131); err != nil {
 		t.Fatalf("Kill returned error: %v", err)
 	}
 
@@ -231,7 +240,8 @@ func TestKillForceKillsAfterGracePeriodOnUnix(t *testing.T) {
 	killPollInterval = 1 * time.Millisecond
 
 	svc := NewProcessService()
-	if err := svc.Kill(5151); err != nil {
+	ctx := context.Background()
+	if err := svc.Kill(ctx, 5151); err != nil {
 		t.Fatalf("Kill returned error: %v", err)
 	}
 
@@ -270,7 +280,8 @@ func TestKillReturnsErrorWhenIsRunningFails(t *testing.T) {
 	killPollInterval = 1 * time.Millisecond
 
 	svc := NewProcessService()
-	err := svc.Kill(6262)
+	ctx := context.Background()
+	err := svc.Kill(ctx, 6262)
 	if err == nil {
 		t.Fatal("expected error when IsRunning fails")
 	}
@@ -306,7 +317,8 @@ func TestKillTreatsGoneAfterDeadlineAsSuccess(t *testing.T) {
 	killPollInterval = 1 * time.Millisecond
 
 	svc := NewProcessService()
-	if err := svc.Kill(7272); err != nil {
+	ctx := context.Background()
+	if err := svc.Kill(ctx, 7272); err != nil {
 		t.Fatalf("expected success when process vanishes before final kill, got %v", err)
 	}
 	if proc.killCalls != 1 {
