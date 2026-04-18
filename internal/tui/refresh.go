@@ -16,10 +16,12 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-type statusClearMsg struct{}
+type statusClearMsg struct {
+	generation int64
+}
 
-func statusClearCmd() tea.Cmd {
+func statusClearCmd(generation int64) tea.Cmd {
 	return tea.Tick(3*time.Second, func(time.Time) tea.Msg {
-		return statusClearMsg{}
+		return statusClearMsg{generation: generation}
 	})
 }

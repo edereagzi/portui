@@ -30,6 +30,8 @@ func (s *GopsutilScanner) Scan(ctx context.Context) ([]types.PortEntry, error) {
 	}
 
 	entries := make([]types.PortEntry, 0, len(conns))
+	procCache := make(map[int32]procMeta)
+
 	for _, conn := range conns {
 		if conn.Status != "LISTEN" {
 			continue
@@ -47,14 +49,23 @@ func (s *GopsutilScanner) Scan(ctx context.Context) ([]types.PortEntry, error) {
 		}
 
 		if entry.PID > 0 {
-			p, procErr := newProcess(entry.PID)
-			if procErr == nil {
-				if processName, nameErr := p.Name(); nameErr == nil {
-					entry.ProcessName = processName
+			if meta, ok := procCache[entry.PID]; ok {
+				entry.ProcessName = meta.name
+				entry.User = meta.user
+			} else {
+				meta := procMeta{}
+				p, procErr := newProcess(entry.PID)
+				if procErr == nil {
+					if processName, nameErr := p.Name(); nameErr == nil {
+						entry.ProcessName = processName
+						meta.name = processName
+					}
+					if username, userErr := p.Username(); userErr == nil {
+						entry.User = username
+						meta.user = username
+					}
 				}
-				if username, userErr := p.Username(); userErr == nil {
-					entry.User = username
-				}
+				procCache[entry.PID] = meta
 			}
 		}
 
@@ -62,6 +73,11 @@ func (s *GopsutilScanner) Scan(ctx context.Context) ([]types.PortEntry, error) {
 	}
 
 	return entries, nil
+}
+
+type procMeta struct {
+	name string
+	user string
 }
 
 func localAddr(addr gnet.Addr) string {

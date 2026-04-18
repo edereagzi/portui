@@ -24,10 +24,28 @@ type killResultMsg struct {
 	err   error
 }
 
+type processInfoLoadedMsg struct {
+	reqID int64
+	pid   int32
+	info  *types.ProcessInfo
+	err   error
+}
+
 func killProcessCmd(svc types.ProcessService, entry types.PortEntry) tea.Cmd {
 	return func() tea.Msg {
-		err := svc.Kill(entry.PID)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		err := svc.Kill(ctx, entry.PID)
 		return killResultMsg{entry: entry, err: err}
+	}
+}
+
+func loadProcessInfoCmd(svc types.ProcessService, reqID int64, pid int32) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		info, err := svc.GetInfo(ctx, pid)
+		return processInfoLoadedMsg{reqID: reqID, pid: pid, info: info, err: err}
 	}
 }
 

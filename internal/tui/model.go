@@ -21,7 +21,6 @@ const (
 	stateDetail
 	stateSearch
 	stateConfirmKill
-	stateHelp
 )
 
 type Model struct {
@@ -41,6 +40,12 @@ type Model struct {
 	detailInfo         *types.ProcessInfo
 	statusMsg          string
 	statusIsErr        bool
+	showHelp           bool
+	scanInFlight       bool
+	refreshNeeded      bool
+	detailReqID        int64
+	detailPID          int32
+	statusGeneration   int64
 }
 
 func New(scanner types.PortScanner, processService types.ProcessService) Model {
@@ -53,6 +58,7 @@ func New(scanner types.PortScanner, processService types.ProcessService) Model {
 		table:          buildTable(nil, 0, 0),
 		state:          stateLoading,
 		filterInput:    ti,
+		scanInFlight:   true,
 	}
 }
 
@@ -85,12 +91,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case portsLoadedMsg:
 		m.entries = msg.entries
 		m.err = nil
+		m.scanInFlight = false
 		if m.state == stateLoading {
 			m.state = stateTable
 		}
 		m.rebuildTable()
+		if m.refreshNeeded {
+			m.refreshNeeded = false
+			m.scanInFlight = true
+			return m, scanPortsCmd(m.scanner)
+		}
 		return m, nil
 	case tickMsg:
+		if m.scanInFlight {
+			return m, tickCmd()
+		}
+		m.scanInFlight = true
 		return m, tea.Batch(scanPortsCmd(m.scanner), tickCmd())
 	case killResultMsg:
 		if msg.err != nil {
@@ -104,15 +120,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.confirmImpactPorts = nil
 		m.state = stateTable
 		m.rebuildTable()
-		return m, tea.Batch(scanPortsCmd(m.scanner), statusClearCmd())
+		m.statusGeneration++
+		cmds := []tea.Cmd{statusClearCmd(m.statusGeneration)}
+		if m.scanInFlight {
+			m.refreshNeeded = true
+		} else {
+			m.scanInFlight = true
+			cmds = append(cmds, scanPortsCmd(m.scanner))
+		}
+		return m, tea.Batch(cmds...)
 	case statusClearMsg:
-		m.statusMsg = ""
-		m.statusIsErr = false
+		if m.statusGeneration == msg.generation {
+			m.statusMsg = ""
+			m.statusIsErr = false
+		}
+		return m, nil
+	case processInfoLoadedMsg:
+		if m.detailReqID != msg.reqID {
+			return m, nil
+		}
+		if msg.err != nil {
+			if m.state == stateDetail && m.detailPID == msg.pid {
+				m.statusMsg = formatProcessInfoFailure(msg.err)
+				m.statusIsErr = true
+				m.state = stateTable
+				m.selectedEntry = nil
+				m.detailInfo = nil
+				m.detailPID = 0
+				m.statusGeneration++
+				return m, statusClearCmd(m.statusGeneration)
+			}
+			return m, nil
+		}
+		if m.state == stateDetail && m.detailPID == msg.pid {
+			m.detailInfo = msg.info
+		}
 		return m, nil
 	case errMsg:
 		m.err = msg.err
+		m.scanInFlight = false
 		if m.state == stateLoading {
 			m.state = stateTable
+		}
+		if m.refreshNeeded {
+			m.refreshNeeded = false
+			m.scanInFlight = true
+			return m, scanPortsCmd(m.scanner)
 		}
 		return m, nil
 	case tea.WindowSizeMsg:
@@ -122,17 +175,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		if key.Matches(msg, Keys.Help) {
-			if m.state == stateHelp {
-				m.state = stateTable
-			} else {
-				m.state = stateHelp
-			}
+			m.showHelp = !m.showHelp
 			return m, nil
 		}
 
-		if m.state == stateHelp {
-			if key.Matches(msg, Keys.Esc) {
-				m.state = stateTable
+		if m.showHelp {
+			if key.Matches(msg, Keys.Esc) || key.Matches(msg, Keys.Help) {
+				m.showHelp = false
 			}
 			return m, nil
 		}
@@ -151,7 +200,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if isUnkillableEntry(m.selectedEntry) {
 					m.statusMsg = "✗ Kill not available for this entry on current OS"
 					m.statusIsErr = true
-					return m, statusClearCmd()
+					m.statusGeneration++
+					return m, statusClearCmd(m.statusGeneration)
 				}
 				m.confirmImpactPorts = impactedPortsByPID(m.entries, m.selectedEntry.PID)
 				m.state = stateConfirmKill
@@ -168,18 +218,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if isUnkillableEntry(entry) {
 						m.statusMsg = formatUnkillableEntryInfo(entry)
 						m.statusIsErr = true
-						return m, statusClearCmd()
-					}
-					info, err := m.processService.GetInfo(entry.PID)
-					if err != nil {
-						m.statusMsg = formatProcessInfoFailure(err)
-						m.statusIsErr = true
-						return m, statusClearCmd()
+						m.statusGeneration++
+						return m, statusClearCmd(m.statusGeneration)
 					}
 					entryCopy := *entry
 					m.selectedEntry = &entryCopy
-					m.detailInfo = info
+					m.detailInfo = nil
+					m.detailPID = entry.PID
+					m.detailReqID++
 					m.state = stateDetail
+					return m, loadProcessInfoCmd(m.processService, m.detailReqID, entry.PID)
 				}
 				return m, nil
 			}
@@ -194,7 +242,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if isUnkillableEntry(entry) {
 						m.statusMsg = "✗ Kill not available for this entry on current OS"
 						m.statusIsErr = true
-						return m, statusClearCmd()
+						m.statusGeneration++
+						return m, statusClearCmd(m.statusGeneration)
 					}
 					entryCopy := *entry
 					m.selectedEntry = &entryCopy
@@ -205,6 +254,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			if key.Matches(msg, Keys.Refresh) {
+				if m.scanInFlight {
+					m.refreshNeeded = true
+					return m, nil
+				}
+				m.scanInFlight = true
 				return m, scanPortsCmd(m.scanner)
 			}
 			if key.Matches(msg, Keys.Up) || key.Matches(msg, Keys.Down) {
@@ -226,6 +280,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				entry := *m.selectedEntry
 				m.statusMsg = fmt.Sprintf("Killing %s (PID %d)…", entry.ProcessName, entry.PID)
 				m.statusIsErr = false
+				m.statusGeneration++
 				return m, killProcessCmd(m.processService, entry)
 			}
 		}
@@ -268,10 +323,12 @@ func (m Model) View() tea.View {
 		content = m.renderTableView(m.width)
 	case stateDetail:
 		content = m.detailView()
-	case stateHelp:
-		content = m.helpOverlayView()
 	default:
 		content = m.loadingView()
+	}
+
+	if m.showHelp {
+		content = m.helpOverlayView()
 	}
 
 	view := tea.NewView(content)
@@ -364,13 +421,14 @@ func (m Model) renderTableView(width int) string {
 }
 
 func (m Model) footerHints() string {
+	if m.showHelp {
+		return "?/esc: close help"
+	}
 	switch m.state {
 	case stateSearch:
 		return "enter: apply filter  |  esc: clear & close  |  q: quit"
 	case stateConfirmKill:
 		return "y: confirm kill  |  n/esc: cancel"
-	case stateHelp:
-		return "?/esc: close help"
 	case stateDetail:
 		return "x: kill  |  esc: back  |  ?: help  |  q: quit"
 	default:

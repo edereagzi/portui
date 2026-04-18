@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -15,11 +16,11 @@ type mockProcessServiceKill struct {
 	killedPIDs []int32
 }
 
-func (m *mockProcessServiceKill) GetInfo(pid int32) (*types.ProcessInfo, error) {
+func (m *mockProcessServiceKill) GetInfo(ctx context.Context, pid int32) (*types.ProcessInfo, error) {
 	return &types.ProcessInfo{PID: pid}, nil
 }
 
-func (m *mockProcessServiceKill) Kill(pid int32) error {
+func (m *mockProcessServiceKill) Kill(ctx context.Context, pid int32) error {
 	m.killedPIDs = append(m.killedPIDs, pid)
 	return m.killErr
 }

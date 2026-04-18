@@ -25,21 +25,21 @@ func (m mockScanner) Scan(context.Context) ([]types.PortEntry, error) {
 
 type mockProcessService struct{}
 
-func (mockProcessService) GetInfo(pid int32) (*types.ProcessInfo, error) {
+func (mockProcessService) GetInfo(ctx context.Context, pid int32) (*types.ProcessInfo, error) {
 	return &types.ProcessInfo{PID: pid}, nil
 }
 
-func (mockProcessService) Kill(pid int32) error {
+func (mockProcessService) Kill(ctx context.Context, pid int32) error {
 	return nil
 }
 
 type mockProcessServiceInfoErr struct{}
 
-func (mockProcessServiceInfoErr) GetInfo(pid int32) (*types.ProcessInfo, error) {
+func (mockProcessServiceInfoErr) GetInfo(ctx context.Context, pid int32) (*types.ProcessInfo, error) {
 	return nil, errors.New("permission denied")
 }
 
-func (mockProcessServiceInfoErr) Kill(pid int32) error {
+func (mockProcessServiceInfoErr) Kill(ctx context.Context, pid int32) error {
 	return nil
 }
 
@@ -180,8 +180,12 @@ func TestModelGetInfoErrorShowsActionableHint(t *testing.T) {
 	updated, _ := m.Update(portsLoadedMsg{entries: testEntries()})
 	m = updated.(Model)
 
-	updated2, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-	got := updated2.(Model)
+	updated2, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated2.(Model)
+
+	msg := cmd()
+	updated3, _ := m.Update(msg)
+	got := updated3.(Model)
 
 	if !strings.Contains(got.statusMsg, "Try running with sudo") && !strings.Contains(got.statusMsg, "Administrator") {
 		t.Fatalf("expected actionable privilege hint in process info error, got %q", got.statusMsg)

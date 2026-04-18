@@ -15,31 +15,31 @@ func TestHelpOverlayTogglesWithQuestionMark(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyPressMsg{Text: "?"})
 	got := updated.(Model)
-	if got.state != stateHelp {
-		t.Fatalf("expected stateHelp after '?', got %v", got.state)
+	if !got.showHelp {
+		t.Fatalf("expected showHelp=true after '?', got %v", got.showHelp)
 	}
 
 	updated2, _ := got.Update(tea.KeyPressMsg{Text: "?"})
 	got2 := updated2.(Model)
-	if got2.state != stateTable {
-		t.Fatalf("expected stateTable after second '?', got %v", got2.state)
+	if got2.showHelp {
+		t.Fatalf("expected showHelp=false after second '?', got %v", got2.showHelp)
 	}
 }
 
 func TestHelpOverlayDismissesWithEsc(t *testing.T) {
 	m := newLoadedModel(testEntries())
-	m.state = stateHelp
+	m.showHelp = true
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
 	got := updated.(Model)
-	if got.state != stateTable {
-		t.Fatalf("expected stateTable after Esc, got %v", got.state)
+	if got.showHelp {
+		t.Fatalf("expected showHelp=false after Esc, got %v", got.showHelp)
 	}
 }
 
 func TestHelpViewContainsKeybindings(t *testing.T) {
 	m := newLoadedModel(testEntries())
-	m.state = stateHelp
+	m.showHelp = true
 	m.width = 100
 	m.height = 30
 
@@ -151,7 +151,7 @@ func TestFooterHintsConfirmKill(t *testing.T) {
 
 func TestFooterHintsHelp(t *testing.T) {
 	m := newLoadedModel(testEntries())
-	m.state = stateHelp
+	m.showHelp = true
 	hints := m.footerHints()
 	if !strings.Contains(hints, "close help") {
 		t.Fatalf("expected help footer with 'close help', got %q", hints)

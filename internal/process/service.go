@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"strings"
@@ -16,9 +17,9 @@ var killPollInterval = 200 * time.Millisecond
 var currentGOOS = runtime.GOOS
 
 type managedProcess interface {
-	Terminate() error
-	Kill() error
-	IsRunning() (bool, error)
+	TerminateWithContext(ctx context.Context) error
+	KillWithContext(ctx context.Context) error
+	IsRunningWithContext(ctx context.Context) (bool, error)
 }
 
 var newManagedProcess = func(pid int32) (managedProcess, error) {
@@ -31,41 +32,41 @@ func NewProcessService() *GopsutilProcessService {
 	return &GopsutilProcessService{}
 }
 
-func (s *GopsutilProcessService) GetInfo(pid int32) (*types.ProcessInfo, error) {
+func (s *GopsutilProcessService) GetInfo(ctx context.Context, pid int32) (*types.ProcessInfo, error) {
 	if pid <= 0 {
 		return nil, fmt.Errorf("invalid PID %d", pid)
 	}
 
-	p, err := gprocess.NewProcess(pid)
+	p, err := gprocess.NewProcessWithContext(ctx, pid)
 	if err != nil {
 		return nil, wrapProcessError(pid, err)
 	}
 
 	info := &types.ProcessInfo{PID: pid}
 
-	if name, err := p.Name(); err == nil {
+	if name, err := p.NameWithContext(ctx); err == nil {
 		info.Name = name
 	}
-	if cmdline, err := p.Cmdline(); err == nil {
+	if cmdline, err := p.CmdlineWithContext(ctx); err == nil {
 		info.Cmdline = cmdline
 	}
-	if username, err := p.Username(); err == nil {
+	if username, err := p.UsernameWithContext(ctx); err == nil {
 		info.User = username
 	}
-	if memInfo, err := p.MemoryInfo(); err == nil && memInfo != nil {
+	if memInfo, err := p.MemoryInfoWithContext(ctx); err == nil && memInfo != nil {
 		info.MemoryRSS = memInfo.RSS
 	}
-	if createTime, err := p.CreateTime(); err == nil {
+	if createTime, err := p.CreateTimeWithContext(ctx); err == nil {
 		info.CreateTime = createTime
 	}
-	if parentPID, err := p.Ppid(); err == nil {
+	if parentPID, err := p.PpidWithContext(ctx); err == nil {
 		info.ParentPID = parentPID
 	}
 
 	return info, nil
 }
 
-func (s *GopsutilProcessService) Kill(pid int32) error {
+func (s *GopsutilProcessService) Kill(ctx context.Context, pid int32) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d", pid)
 	}
@@ -79,13 +80,13 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 	}
 
 	if currentGOOS == "windows" {
-		if err := p.Kill(); err != nil {
+		if err := p.KillWithContext(ctx); err != nil {
 			return wrapProcessError(pid, err)
 		}
 		return nil
 	}
 
-	if err := p.Terminate(); err != nil {
+	if err := p.TerminateWithContext(ctx); err != nil {
 		return wrapProcessError(pid, err)
 	}
 
@@ -95,8 +96,10 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-deadline:
-			running, runningErr := p.IsRunning()
+			running, runningErr := p.IsRunningWithContext(ctx)
 			if runningErr != nil {
 				if isProcessGoneError(runningErr) {
 					return nil
@@ -104,7 +107,7 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 				return wrapProcessError(pid, runningErr)
 			}
 			if running {
-				if err := p.Kill(); err != nil {
+				if err := p.KillWithContext(ctx); err != nil {
 					if isProcessGoneError(err) {
 						return nil
 					}
@@ -113,7 +116,7 @@ func (s *GopsutilProcessService) Kill(pid int32) error {
 			}
 			return nil
 		case <-ticker.C:
-			running, runningErr := p.IsRunning()
+			running, runningErr := p.IsRunningWithContext(ctx)
 			if runningErr != nil {
 				if isProcessGoneError(runningErr) {
 					return nil
